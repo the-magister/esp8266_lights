@@ -16,16 +16,28 @@
 #include <ESP8266WiFi.h>
 #include <WiFiClient.h>
 #include <ESP8266WebServer.h>
-#include <ESP8266mDNS.h>
+#include <ESP8266mDNS.h> // add mDNS to overcome ping timeout issues
+#include <Streaming.h>
+#include <Metro.h>
 
 // Fill in your WiFi router SSID and password
 const char* ssid = "Looney";
 const char* password = "TinyandTooney";
-MDNSResponder mdns;
 
 ESP8266WebServer server(80);
+String message = "";
 
-const char INDEX_HTML[] =
+// Animation control
+enum Anim_t { Off, Blink, On };
+Anim_t Blue_LED = Off;
+Anim_t Red_LED = Off;
+// brightness settings
+int Blue_Brightness = 1023;
+
+const int RED_LED_PIN = 0;
+const int BLUE_LED_PIN = 2;
+
+const char HEAD_FORM[] =
   "<!DOCTYPE HTML>"
   "<html>"
   "<head>"
@@ -37,93 +49,117 @@ const char INDEX_HTML[] =
   "</head>"
   "<body>"
   "<h1>Christmas Tree Lights</h1>"
-  "<FORM action=\"/\" method=\"post\">"
-  "<P>"
-  "LED<br>"
-  "<INPUT type=\"radio\" name=\"LED\" value=\"1\">On<BR>"
-  "<INPUT type=\"radio\" name=\"LED\" value=\"0\">Off<BR>"
-  "<br>"
-  "Animation<br>"
-  "<INPUT type=\"radio\" name=\"Anim\" value=\"1\">Solid White<BR>"
-  "<INPUT type=\"radio\" name=\"Anim\" value=\"2\">Solid White with Twinkle<BR>"
-  "<br>"
-  "<INPUT type=\"submit\" value=\"Send\"> <INPUT type=\"reset\">"
-  "</P>"
-  "</FORM>"
+  ;
+const char TAIL_FORM[] =
   "</body>"
-  "</html>";
+  "</html>"
+  ;
 
-// GPIO#0 is for Adafruit ESP8266 HUZZAH board. Your board LED might be on 13.
-const int LEDPIN = 0;
-
-void handleRoot()
-{
-  if (server.hasArg("LED")) {
+void handleRoot() {
+  if (server.hasArg("Red_LED")) {
     handleSubmit();
   }
-  else {
-    server.send(200, "text/html", INDEX_HTML);
-  }
+
+  returnForm();
 }
 
-void returnFail(String msg)
-{
+void returnFail(String msg) {
   server.sendHeader("Connection", "close");
   server.sendHeader("Access-Control-Allow-Origin", "*");
   server.send(500, "text/plain", msg + "\r\n");
 }
 
-void handleSubmit()
-{
-  String LEDvalue;
+void returnForm() {
+  // append header
+  message = HEAD_FORM;
 
-  if (!server.hasArg("LED")) return returnFail("BAD ARGS");
-  LEDvalue = server.arg("LED");
-  if (LEDvalue == "1") {
-    writeLED(true);
-    server.send(200, "text/html", INDEX_HTML);
+  // report out states
+  String redOnChecked = (Red_LED == On ? "checked" : "");
+  String redBlinkChecked = (Red_LED == Blink ? "checked" : "");
+  String redOffChecked = (Red_LED == Off ? "checked" : "");
+
+  String blueOnChecked = (Blue_LED == On ? "checked" : "");
+  String blueBlinkChecked = (Blue_LED == Blink ? "checked" : "");
+  String blueOffChecked = (Blue_LED == Off ? "checked" : "");
+
+  String blueBrightness = String(Blue_Brightness);
+
+  // dynamic form
+  message += "<FORM action=\"/\" method=\"post\">";
+  message += "<P>";
+  message += "Red LED<br>";
+  message += "<INPUT type=\"radio\" name=\"Red_LED\" value=\"1\" " + redOnChecked + ">On<BR>";
+  message += "<INPUT type=\"radio\" name=\"Red_LED\" value=\"2\" " + redBlinkChecked + ">Blink<BR>";
+  message += "<INPUT type=\"radio\" name=\"Red_LED\" value=\"3\" " + redOffChecked + ">Off<BR>";
+  message += "<br>";
+  message += "Blue LED<br>";
+  message += "<INPUT type=\"radio\" name=\"Blue_LED\" value=\"1\" " + blueOnChecked + ">On<BR>";
+  message += "<INPUT type=\"radio\" name=\"Blue_LED\" value=\"2\" " + blueBlinkChecked + ">Blink<BR>";
+  message += "<INPUT type=\"radio\" name=\"Blue_LED\" value=\"3\" " + blueOffChecked + ">Off<BR>";
+  message += "Maximum Brightness: <INPUT type=\"number\" name=\"Blue_Bright\" min=\"0\" max=\"1023\" value=\"" + blueBrightness + "\"><BR>";
+  message += "<br>";
+  message += "<INPUT type=\"submit\" value=\"Send\"> <INPUT type=\"reset\">";
+  message += "</P>";
+  message += "</FORM>";
+
+  // append footer
+  message += TAIL_FORM;
+
+  // send form
+  server.send(200, "text/html", message);
+
+  //
+  Serial << endl << F("Sent ") << message.length() << F(" bytes:") << message << endl;
+}
+
+void handleSubmit() {
+  Serial << endl;
+  
+  if (!server.hasArg("Red_LED")) return returnFail("BAD ARGS");
+  if (!server.hasArg("Blue_LED")) return returnFail("BAD ARGS");
+  if (!server.hasArg("Blue_Bright")) return returnFail("BAD ARGS");
+
+  message = server.arg("Blue_LED");
+  if (message == "1") {
+    Blue_LED = On;
+    Serial << F("Request to set Blue LED On") << endl;
   }
-  else if (LEDvalue == "0") {
-    writeLED(false);
-    server.send(200, "text/html", INDEX_HTML);
+  else if (message == "2") {
+    Blue_LED = Blink;
+    Serial << F("Request to set Blue LED Blink") << endl;
+  }
+  else if (message == "3") {
+    Blue_LED = Off;
+    Serial << F("Request to set Blue LED Off") << endl;
   }
   else {
-    returnFail("Bad LED value");
+    returnFail("Unknown Blue_LED value");
   }
+
+  message = server.arg("Red_LED");
+  if (message == "1") {
+    Serial << F("Request to set Red LED On") << endl;
+    Red_LED = On;
+  }
+  else if (message == "2") {
+    Serial << F("Request to set Red LED Blink") << endl;
+    Red_LED = Blink;
+  }
+  else if (message == "3") {
+    Serial << F("Request to set Red LED Off") << endl;
+    Red_LED = Off;
+  }
+  else {
+    returnFail("Unknown Red_LED value");
+  }
+
+  Blue_Brightness = server.arg("Blue_Bright").toInt();
+  Serial << F("Request to set Blue Brightness ") << Blue_Brightness << endl;
+
 }
 
-void returnOK()
-{
-  server.sendHeader("Connection", "close");
-  server.sendHeader("Access-Control-Allow-Origin", "*");
-  server.send(200, "text/plain", "OK\r\n");
-}
-
-/*
- * Imperative to turn the LED on using a non-browser http client.
- * For example, using wget.
- * $ wget http://esp8266webform/ledon
- */
-void handleLEDon()
-{
-  writeLED(true);
-  returnOK();
-}
-
-/*
- * Imperative to turn the LED off using a non-browser http client.
- * For example, using wget.
- * $ wget http://esp8266webform/ledoff
- */
-void handleLEDoff()
-{
-  writeLED(false);
-  returnOK();
-}
-
-void handleNotFound()
-{
-  String message = "File Not Found\n\n";
+void handleNotFound() {
+  message = "File Not Found\n\n";
   message += "URI: ";
   message += server.uri();
   message += "\nMethod: ";
@@ -137,21 +173,9 @@ void handleNotFound()
   server.send(404, "text/plain", message);
 }
 
-void writeLED(bool LEDon)
-{
-  // Note inverted logic for Adafruit HUZZAH board
-  if (LEDon)
-    digitalWrite(LEDPIN, 0);
-  else
-    digitalWrite(LEDPIN, 1);
-}
-
-void setup(void)
-{
-  pinMode(LEDPIN, OUTPUT);
-  writeLED(false);
-
+void setup(void) {
   Serial.begin(115200);
+
   WiFi.begin(ssid, password);
   Serial.println("");
 
@@ -165,22 +189,67 @@ void setup(void)
   Serial.println(ssid);
   Serial.print("IP address: ");
   Serial.println(WiFi.localIP());
+  Serial.print("subnet mask: ");
+  Serial.println(WiFi.subnetMask());
+  Serial.print("gateway: ");
+  Serial.println(WiFi.gatewayIP());
+  Serial.print("RSSI: ");
+  Serial.println(WiFi.RSSI());
 
-  if (mdns.begin("TreeLights", WiFi.localIP())) {
-    Serial.println("MDNS responder started");
+  if ( MDNS.begin ( "treelights" ) ) {
+    Serial.println ( "MDNS responder started" );
   }
 
   server.on("/", handleRoot);
-  server.on("/ledon", handleLEDon);
-  server.on("/ledoff", handleLEDoff);
   server.onNotFound(handleNotFound);
 
   server.begin();
   Serial.print("Connect to http://TreeLights.the-magister.com or http://");
   Serial.println(WiFi.localIP());
+
+  pinMode(RED_LED_PIN, OUTPUT);
+  pinMode(BLUE_LED_PIN, OUTPUT);
+
+  // big strings, so let's avoid fragmentation by pre-allocating
+  message.reserve(4096);
+
+  Serial << F("Setup complete.") << endl;
 }
 
-void loop(void)
-{
+void animations() {
+  // blink timing
+  static Metro blinkTimer(500UL);
+  static boolean state = false;
+  if ( blinkTimer.check() ) state = !state;
+
+  switch (Red_LED) {
+    case On: digitalWrite(RED_LED_PIN, LOW); break;
+    case Off: digitalWrite(RED_LED_PIN, HIGH); break;
+    case Blink: digitalWrite(RED_LED_PIN, state); break;
+  }
+
+  switch (Blue_LED) {
+    case On: analogWrite(BLUE_LED_PIN, 1024 - Blue_Brightness); break;
+    case Off: analogWrite(BLUE_LED_PIN, 1023); break;
+    case Blink: state ? analogWrite(BLUE_LED_PIN, 1024 - Blue_Brightness) : analogWrite(BLUE_LED_PIN, 1023); break;
+  }
+}
+
+void loop(void) {
+  animations();
+  
   server.handleClient();
+
+  static Metro heartbeat(5000UL);
+  if( heartbeat.check() ) {
+    if( WiFi.status() == WL_CONNECTION_LOST ) {
+      Serial << F("WiFi connection lost!") << endl;
+    }
+
+    if( WiFi.status() == WL_DISCONNECTED ) {
+      Serial << F("WiFi disconnected!") << endl;
+    }
+    
+    Serial << F(".");
+  }
 }
