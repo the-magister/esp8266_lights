@@ -19,6 +19,9 @@
 #include <ESP8266mDNS.h> // add mDNS to overcome ping timeout issues
 #include <Streaming.h>
 #include <Metro.h>
+#include <FastLED.h>
+
+FASTLED_USING_NAMESPACE
 
 // Fill in your WiFi router SSID and password
 const char* ssid = "Looney";
@@ -37,23 +40,20 @@ int Blue_Brightness = 1023;
 const int RED_LED_PIN = 0;
 const int BLUE_LED_PIN = 2;
 
-const char HEAD_FORM[] =
-  "<!DOCTYPE HTML>"
-  "<html>"
-  "<head>"
-  "<meta name = \"viewport\" content = \"width = device-width, initial-scale = 1.0, maximum-scale = 1.0, user-scalable=0\">"
-  "<title>Christmas Tree Lights</title>"
-  "<style>"
-  "\"body { background-color: #808080; font-family: Arial, Helvetica, Sans-Serif; Color: #000000; }\""
-  "</style>"
-  "</head>"
-  "<body>"
-  "<h1>Christmas Tree Lights</h1>"
-  ;
-const char TAIL_FORM[] =
-  "</body>"
-  "</html>"
-  ;
+// 45mm 12V modules
+#define DATA_PIN   3
+#define CLOCK_PIN    4
+#define LED_TYPE    WS2801
+#define COLOR_ORDER RGB
+#define N_LED    14
+CRGB leds[N_LED];
+
+// general controls
+#define FRAMES_PER_SECOND   20
+#define BRIGHTNESS          255
+
+// rotating "base color" used by many of the patterns
+uint8_t gHue = 0; 
 
 void handleRoot() {
   if (server.hasArg("Red_LED")) {
@@ -70,6 +70,25 @@ void returnFail(String msg) {
 }
 
 void returnForm() {
+  const char HEAD_FORM[] =
+    "<!DOCTYPE HTML>"
+    "<html>"
+    "<head>"
+    "<meta name = \"viewport\" content = \"width = device-width, initial-scale = 1.0, maximum-scale = 1.0, user-scalable=0\">"
+    "<title>Christmas Tree Lights</title>"
+    "<style>"
+    "\"body { background-color: #808080; font-family: Arial, Helvetica, Sans-Serif; Color: #000000; }\""
+    "</style>"
+    "</head>"
+    "<body>"
+    "<h1>Christmas Tree Lights</h1>"
+    ;
+    
+  const char TAIL_FORM[] =
+    "</body>"
+    "</html>"
+    ;
+    
   // append header
   message = HEAD_FORM;
 
@@ -213,6 +232,23 @@ void setup(void) {
   // big strings, so let's avoid fragmentation by pre-allocating
   message.reserve(4096);
 
+  // add LEDs
+  FastLED.addLeds<LED_TYPE, DATA_PIN, CLOCK_PIN, COLOR_ORDER>(leds, N_LED).setCorrection(TypicalLEDStrip);
+  // set master brightness control
+  FastLED.setBrightness(BRIGHTNESS);
+ 
+  fill_solid(leds, N_LED, CRGB::Red);
+  FastLED.show();  
+  delay(1000);
+  fill_solid(leds, N_LED, CRGB::Green);
+  FastLED.show();  
+  delay(1000);
+  fill_solid(leds, N_LED, CRGB::Blue);
+  FastLED.show();  
+  delay(1000);
+  FastLED.clear();
+  FastLED.show();
+
   Serial << F("Setup complete.") << endl;
 }
 
@@ -233,6 +269,15 @@ void animations() {
     case Off: analogWrite(BLUE_LED_PIN, 1023); break;
     case Blink: state ? analogWrite(BLUE_LED_PIN, 1024 - Blue_Brightness) : analogWrite(BLUE_LED_PIN, 1023); break;
   }
+
+  // do some periodic updates
+  EVERY_N_MILLISECONDS( 20 ) { gHue++; } // slowly cycle the "base color" through the rainbow
+
+  // animation
+  fill_rainbow(leds, N_LED, gHue);
+
+  // send the 'leds' array out to the actual LED strip
+  FastLED.show();  
 }
 
 void loop(void) {
