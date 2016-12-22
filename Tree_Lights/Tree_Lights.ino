@@ -23,11 +23,10 @@ const int RED_LED_PIN = 0;
 const int BLUE_LED_PIN = 2;
 
 // 45mm 12V modules
-#define DATA_PIN   13
-#define CLOCK_PIN    14
-#define LED_TYPE    WS2801
+#define DATA_PIN   14
+#define LED_TYPE    WS2811
 #define COLOR_ORDER RGB
-#define N_LED    14
+#define N_LED    109
 CRGB leds[N_LED];
 
 // general controls
@@ -441,7 +440,7 @@ void setup(void) {
   message.reserve(4096);
 
   // add LEDs
-  FastLED.addLeds<LED_TYPE, DATA_PIN, CLOCK_PIN, COLOR_ORDER>(leds, N_LED).setCorrection(TypicalSMD5050);
+  FastLED.addLeds<LED_TYPE, DATA_PIN, COLOR_ORDER>(leds, N_LED).setCorrection(TypicalSMD5050);
   // set master brightness control
   FastLED.setBrightness(255);
 
