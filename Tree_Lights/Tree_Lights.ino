@@ -1,17 +1,9 @@
 /*
- * Demonstrate using an http server and an HTML form to control an LED.
- * The http server runs on the ESP8266.
- *
- * Connect to "http://esp8266WebForm.local" or "http://<IP address>"
- * to bring up an HTML form to control the LED connected GPIO#0. This works
- * for the Adafruit ESP8266 HUZZAH but the LED may be on a different pin on
- * other breakout boards.
- *
- * Imperatives to turn the LED on/off using a non-browser http client.
- * For example, using wget.
- * $ wget http://esp8266webform.local/ledon
- * $ wget http://esp8266webform.local/ledoff
-*/
+ * For the ESP8266 via Adafruit's Feather Huzzah
+ * 
+ * http://esp8266.github.io/Arduino/versions/2.0.0/doc/libraries.html for details on libraries
+ * 
+ */
 
 #include <ESP8266WiFi.h>
 #include <WiFiClient.h>
@@ -20,40 +12,44 @@
 #include <Streaming.h>
 #include <Metro.h>
 #include <FastLED.h>
+#include <EEPROM.h>
 
 FASTLED_USING_NAMESPACE
-
-// Fill in your WiFi router SSID and password
-const char* ssid = "Looney";
-const char* password = "TinyandTooney";
 
 ESP8266WebServer server(80);
 String message = "";
 
 // Animation control
 enum Anim_t { Off, Blink, On };
-Anim_t Blue_LED = Off;
-Anim_t Red_LED = Off;
-// brightness settings
-int Blue_Brightness = 1023;
 
 const int RED_LED_PIN = 0;
 const int BLUE_LED_PIN = 2;
 
 // 45mm 12V modules
-#define DATA_PIN   3
-#define CLOCK_PIN    4
+#define DATA_PIN   13
+#define CLOCK_PIN    14
 #define LED_TYPE    WS2801
 #define COLOR_ORDER RGB
 #define N_LED    14
 CRGB leds[N_LED];
 
 // general controls
-#define FRAMES_PER_SECOND   20
+#define FRAMES_PER_SECOND   20UL
 #define BRIGHTNESS          255
 
 // rotating "base color" used by many of the patterns
 uint8_t gHue = 0; 
+
+// saved to EEPROM
+struct Settings {
+  char ssid[32];
+  char password[32];
+  
+  Anim_t Blue_LED;
+  Anim_t Red_LED;
+  int Blue_Brightness;
+};
+Settings s;
 
 void handleRoot() {
   if (server.hasArg("Red_LED")) {
@@ -69,86 +65,85 @@ void returnFail(String msg) {
   server.send(500, "text/plain", msg + "\r\n");
 }
 
+const char HEAD_FORM[] PROGMEM =
+  "<!DOCTYPE HTML>"
+  "<html>"
+  "<head>"
+  "<meta name = \"viewport\" content = \"width = device-width, initial-scale = 1.0, maximum-scale = 1.0, user-scalable=0\">"
+  "<title>Christmas Tree Lights</title>"
+  "<style>"
+  "\"body { background-color: #808080; font-family: Arial, Helvetica, Sans-Serif; Color: #000000; }\""
+  "</style>"
+  "</head>"
+  "<body>"
+  "<h2>Christmas Tree Lights</h2>"
+  ;
+  
+const char TAIL_FORM[] PROGMEM =
+  "</body>"
+  "</html>"
+  ;
+
+// helper functions to construct a web form
+String radioInput(String name, String value, boolean checked, String text) {
+  String Checked = checked ? "checked" : "";
+
+  return( "<INPUT type=\"radio\" name=\"" + name + "\" value=\"" + value + "\" " + Checked + ">" + text );
+}
+String numberInput(String name, int value, int minval, int maxval) {
+  return( "<INPUT type=\"number\" name=\"" + name + "\" value=\"" + String(value) + "\" min=\"" + String(minval) + "\" max=\"" + String(maxval) + "\">");
+}
+
 void returnForm() {
-  const char HEAD_FORM[] =
-    "<!DOCTYPE HTML>"
-    "<html>"
-    "<head>"
-    "<meta name = \"viewport\" content = \"width = device-width, initial-scale = 1.0, maximum-scale = 1.0, user-scalable=0\">"
-    "<title>Christmas Tree Lights</title>"
-    "<style>"
-    "\"body { background-color: #808080; font-family: Arial, Helvetica, Sans-Serif; Color: #000000; }\""
-    "</style>"
-    "</head>"
-    "<body>"
-    "<h1>Christmas Tree Lights</h1>"
-    ;
-    
-  const char TAIL_FORM[] =
-    "</body>"
-    "</html>"
-    ;
-    
   // append header
-  message = HEAD_FORM;
-
-  // report out states
-  String redOnChecked = (Red_LED == On ? "checked" : "");
-  String redBlinkChecked = (Red_LED == Blink ? "checked" : "");
-  String redOffChecked = (Red_LED == Off ? "checked" : "");
-
-  String blueOnChecked = (Blue_LED == On ? "checked" : "");
-  String blueBlinkChecked = (Blue_LED == Blink ? "checked" : "");
-  String blueOffChecked = (Blue_LED == Off ? "checked" : "");
-
-  String blueBrightness = String(Blue_Brightness);
+  message = FPSTR(HEAD_FORM);
 
   // dynamic form
   message += "<FORM action=\"/\" method=\"post\">";
   message += "<P>";
   message += "Red LED<br>";
-  message += "<INPUT type=\"radio\" name=\"Red_LED\" value=\"1\" " + redOnChecked + ">On<BR>";
-  message += "<INPUT type=\"radio\" name=\"Red_LED\" value=\"2\" " + redBlinkChecked + ">Blink<BR>";
-  message += "<INPUT type=\"radio\" name=\"Red_LED\" value=\"3\" " + redOffChecked + ">Off<BR>";
+  message += radioInput("Red_LED", "1", s.Red_LED==On, "On") + "<BR>";
+  message += radioInput("Red_LED", "2", s.Red_LED==Blink, "Blink") + "<BR>";
+  message += radioInput("Red_LED", "3", s.Red_LED==Off, "Off") + "<BR>"; 
   message += "<br>";
+  
   message += "Blue LED<br>";
-  message += "<INPUT type=\"radio\" name=\"Blue_LED\" value=\"1\" " + blueOnChecked + ">On<BR>";
-  message += "<INPUT type=\"radio\" name=\"Blue_LED\" value=\"2\" " + blueBlinkChecked + ">Blink<BR>";
-  message += "<INPUT type=\"radio\" name=\"Blue_LED\" value=\"3\" " + blueOffChecked + ">Off<BR>";
-  message += "Maximum Brightness: <INPUT type=\"number\" name=\"Blue_Bright\" min=\"0\" max=\"1023\" value=\"" + blueBrightness + "\"><BR>";
+  message += radioInput("Blue_LED", "1", s.Blue_LED==On, "On") + "<BR>";
+  message += radioInput("Blue_LED", "2", s.Blue_LED==Blink, "Blink") + "<BR>";
+  message += radioInput("Blue_LED", "3", s.Blue_LED==Off, "Off") + "<BR>";
+  message += numberInput("Blue_Bright", s.Blue_Brightness, 0, 255) + "<BR>";
   message += "<br>";
-  message += "<INPUT type=\"submit\" value=\"Send\"> <INPUT type=\"reset\">";
+  
+  message += "<INPUT type=\"submit\" value=\"Update Lights\">";
   message += "</P>";
   message += "</FORM>";
 
   // append footer
-  message += TAIL_FORM;
+  message += FPSTR(TAIL_FORM);
 
   // send form
   server.send(200, "text/html", message);
 
   //
-  Serial << endl << F("Sent ") << message.length() << F(" bytes:") << message << endl;
+  Serial << F("Sent ") << message.length() << F(" bytes:") << message << endl;
 }
 
 void handleSubmit() {
-  Serial << endl;
-  
   if (!server.hasArg("Red_LED")) return returnFail("BAD ARGS");
   if (!server.hasArg("Blue_LED")) return returnFail("BAD ARGS");
   if (!server.hasArg("Blue_Bright")) return returnFail("BAD ARGS");
 
   message = server.arg("Blue_LED");
   if (message == "1") {
-    Blue_LED = On;
+    s.Blue_LED = On;
     Serial << F("Request to set Blue LED On") << endl;
   }
   else if (message == "2") {
-    Blue_LED = Blink;
+    s.Blue_LED = Blink;
     Serial << F("Request to set Blue LED Blink") << endl;
   }
   else if (message == "3") {
-    Blue_LED = Off;
+    s.Blue_LED = Off;
     Serial << F("Request to set Blue LED Off") << endl;
   }
   else {
@@ -158,23 +153,26 @@ void handleSubmit() {
   message = server.arg("Red_LED");
   if (message == "1") {
     Serial << F("Request to set Red LED On") << endl;
-    Red_LED = On;
+    s.Red_LED = On;
   }
   else if (message == "2") {
     Serial << F("Request to set Red LED Blink") << endl;
-    Red_LED = Blink;
+    s.Red_LED = Blink;
   }
   else if (message == "3") {
     Serial << F("Request to set Red LED Off") << endl;
-    Red_LED = Off;
+    s.Red_LED = Off;
   }
   else {
     returnFail("Unknown Red_LED value");
   }
 
-  Blue_Brightness = server.arg("Blue_Bright").toInt();
-  Serial << F("Request to set Blue Brightness ") << Blue_Brightness << endl;
+  s.Blue_Brightness = server.arg("Blue_Bright").toInt();
+  Serial << F("Request to set Blue Brightness ") << s.Blue_Brightness << endl;
 
+  // update settings
+  EEPROM.put(0, s);
+  EEPROM.commit();
 }
 
 void handleNotFound() {
@@ -192,10 +190,59 @@ void handleNotFound() {
   server.send(404, "text/plain", message);
 }
 
+void animations() {
+  // blink timing
+  static Metro blinkTimer(500UL);
+  static boolean state = false;
+  if ( blinkTimer.check() ) state = !state;
+
+  switch (s.Red_LED) {
+    case On: digitalWrite(RED_LED_PIN, LOW); break;
+    case Off: digitalWrite(RED_LED_PIN, HIGH); break;
+    case Blink: digitalWrite(RED_LED_PIN, state); break;
+  }
+
+  switch (s.Blue_LED) {
+    case On: analogWrite(BLUE_LED_PIN, 256 - s.Blue_Brightness); break;
+    case Off: analogWrite(BLUE_LED_PIN, 255); break;
+    case Blink: state ? analogWrite(BLUE_LED_PIN, 256 - s.Blue_Brightness) : analogWrite(BLUE_LED_PIN, 255); break;
+  }
+
+  // do some periodic updates
+  EVERY_N_MILLISECONDS( 1000UL/FRAMES_PER_SECOND ) { 
+    // animation
+    gHue++; // slowly cycle the "base color" through the rainbow
+    fill_rainbow(leds, N_LED, gHue);
+
+    // send the 'leds' array out to the actual LED strip
+    FastLED.show();  
+  }
+}
+
 void setup(void) {
   Serial.begin(115200);
 
-  WiFi.begin(ssid, password);
+  // http://esp8266.github.io/Arduino/versions/2.0.0/doc/libraries.html#eeprom
+  EEPROM.begin(512);
+
+/*
+  s.brightness = Blue_Brightness;
+  strncpy(s.ssid, ssid, 32);
+  strncpy(s.password, password, 32);
+  EEPROM.put(0, s);
+  EEPROM.commit();
+  */
+  EEPROM.get(0, s);
+  
+  Serial << F("Size of Settings:") << sizeof(s) << endl;
+  Serial << F("SSID:") << s.ssid << endl;
+  Serial << F("password:") << s.password << endl;
+  Serial << F("Red_led:") << s.Red_LED << endl;
+  Serial << F("Blue_led:") << s.Blue_LED << endl;
+  Serial << F("Blue_bright:") << s.Blue_Brightness << endl;
+
+  WiFi.mode(WIFI_STA); // don't need AP
+  WiFi.begin(s.ssid, s.password);
   Serial.println("");
 
   // Wait for connection
@@ -205,7 +252,7 @@ void setup(void) {
   }
   Serial.println("");
   Serial.print("Connected to ");
-  Serial.println(ssid);
+  Serial.println(s.ssid);
   Serial.print("IP address: ");
   Serial.println(WiFi.localIP());
   Serial.print("subnet mask: ");
@@ -228,7 +275,10 @@ void setup(void) {
 
   pinMode(RED_LED_PIN, OUTPUT);
   pinMode(BLUE_LED_PIN, OUTPUT);
-
+  // all pwm is software emulation; need to crank up the frequency with FastLED
+  analogWriteRange(256-1);
+//  analogWriteFreq(10000);
+  
   // big strings, so let's avoid fragmentation by pre-allocating
   message.reserve(4096);
 
@@ -250,34 +300,7 @@ void setup(void) {
   FastLED.show();
 
   Serial << F("Setup complete.") << endl;
-}
 
-void animations() {
-  // blink timing
-  static Metro blinkTimer(500UL);
-  static boolean state = false;
-  if ( blinkTimer.check() ) state = !state;
-
-  switch (Red_LED) {
-    case On: digitalWrite(RED_LED_PIN, LOW); break;
-    case Off: digitalWrite(RED_LED_PIN, HIGH); break;
-    case Blink: digitalWrite(RED_LED_PIN, state); break;
-  }
-
-  switch (Blue_LED) {
-    case On: analogWrite(BLUE_LED_PIN, 1024 - Blue_Brightness); break;
-    case Off: analogWrite(BLUE_LED_PIN, 1023); break;
-    case Blink: state ? analogWrite(BLUE_LED_PIN, 1024 - Blue_Brightness) : analogWrite(BLUE_LED_PIN, 1023); break;
-  }
-
-  // do some periodic updates
-  EVERY_N_MILLISECONDS( 20 ) { gHue++; } // slowly cycle the "base color" through the rainbow
-
-  // animation
-  fill_rainbow(leds, N_LED, gHue);
-
-  // send the 'leds' array out to the actual LED strip
-  FastLED.show();  
 }
 
 void loop(void) {
@@ -295,6 +318,6 @@ void loop(void) {
       Serial << F("WiFi disconnected!") << endl;
     }
     
-    Serial << F(".");
+    Serial << F("FPS reported: ") << FastLED.getFPS() << endl;
   }
 }
