@@ -252,7 +252,8 @@ void animations() {
       blueOn();
 
       // do a shift, but not for too long
-      if( maxBlend < 255 ) currentColor = blend(currentColor, newColor, ++maxBlend);
+      maxBlend = qadd8(maxBlend, 10);
+      if( maxBlend < 255 ) currentColor = blend(currentColor, newColor, maxBlend);
       else currentColor = newColor;
       
     } else {
@@ -299,14 +300,16 @@ void heartBeat() {
   if ( s.color == 1 ) newColor = getCheerLightsColor();
 
   Serial << F("Status.");
-  Serial << F("  Current Color: ");
+  Serial << F("  Set Color: ");
   if ( s.color == 0 ) Serial << F("Off");
   if ( s.color == 1 ) Serial << F("CheerLights");
   if ( s.color == 2 ) Serial << F("FairyLight");
   if ( s.color == 3 ) Serial << F("White");
   if ( s.color == 4 ) Serial << F("Snow");
   if ( s.color == 5 ) Serial << F("OldLace");
-  Serial << F("  Current Color: ") << currentColor.red << F("/") << currentColor.green << F("/") << currentColor.blue;
+  Serial << F("  Current RGB: ") << currentColor.red << F("/") << currentColor.green << F("/") << currentColor.blue;
+  Serial << F("  Brightness: ") << s.bright;
+  Serial << F("  Sparkles: ") << s.sparkles;
   Serial << F("  FPS reported: ") << FastLED.getFPS();
   Serial << endl;
 
@@ -333,7 +336,8 @@ void getTime() {
   delay(100);
 
   // Read all the lines of the reply from server and print them to Serial
-  // expected line is like : Date: Thu, 01 Jan 2015 22:00:14 GMT
+  // 57744 16-12-22 20:41:02 00 1 0 193.5 UTC(NIST) *
+  
   char buffer[12];
   String dateTime = "";
 
@@ -456,8 +460,6 @@ void setup(void) {
   updateFromSettings();
 
   Serial << F("Setup complete.") << endl;
-
-  getTime();
 
 }
 
