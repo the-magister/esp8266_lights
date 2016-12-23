@@ -11,6 +11,7 @@
 #include <ESP8266mDNS.h> // add mDNS to overcome ping timeout issues
 #include <Streaming.h>
 #include <Metro.h>
+#define FASTLED_ESP8266_RAW_PIN_ORDER
 #include <FastLED.h>
 #include <EEPROM.h>
 
@@ -22,11 +23,11 @@ String message = "";
 const int RED_LED_PIN = 0;
 const int BLUE_LED_PIN = 2;
 
-// 45mm 12V modules
-#define DATA_PIN   14
-#define LED_TYPE    WS2811
-#define COLOR_ORDER RGB
-#define N_LED    109
+// LED light defs
+#define DATA_PIN   13
+#define LED_TYPE    WS2812B // gotta be.  the controller is in the 5050 package.
+#define COLOR_ORDER GRB // got green, *mush*, red
+#define N_LED    108
 CRGB leds[N_LED];
 
 // general controls
@@ -71,7 +72,7 @@ CRGB getCheerLightsColor() {
                "Connection: close\r\n\r\n");
 
   Serial << F("Getting Cheerlights color ... ");
-  delay(100);
+  FastLED.delay(100);
 
   // Read all the lines of the reply from server and scan for hex color
   while (client.available()) {
@@ -236,7 +237,7 @@ void addSparkles(fract8 chanceOfGlitter) {
 }
 
 void animations() {
-  static byte maxBlend = 10;
+  static byte maxBlend = 1;
 
   // do some periodic updates
   EVERY_N_MILLISECONDS( 1000UL / FRAMES_PER_SECOND ) {
@@ -251,24 +252,25 @@ void animations() {
       blueOn();
 
       // do a shift, but not for too long
-      maxBlend = qadd8(maxBlend, 10);
+      maxBlend = qadd8(maxBlend, 1);
       if( maxBlend < 255 ) currentColor = blend(currentColor, newColor, maxBlend);
       else currentColor = newColor;
       
     } else {
-      maxBlend = 10;
+      maxBlend = 1;
     }
     
     // render
     fill_solid(leds, N_LED, currentColor);
 
     // add some glitter
-    if( s.sparkles ) addSparkles(24);
+    if( s.color !=0 && s.sparkles ) addSparkles(24);
 
-    // send the 'leds' array out to the actual LED strip
-    FastLED.show();
     blueOff();
   }
+
+  // send the 'leds' array out to the actual LED strip
+  FastLED.show();
 }
 
 void redOff() {
@@ -332,7 +334,7 @@ void getTime() {
   // This will send the request to the server
   client.print("HEAD / HTTP/1.1\r\nAccept: */*\r\nUser-Agent: Mozilla/4.0 (compatible; ESP8266 NodeMcu Lua;)\r\n\r\n");
 
-  delay(100);
+  FastLED.delay(100);
 
   // Read all the lines of the reply from server and print them to Serial
   // 57744 16-12-22 20:41:02 00 1 0 193.5 UTC(NIST) *
@@ -377,22 +379,17 @@ void setup(void) {
   // http://esp8266.github.io/Arduino/versions/2.0.0/doc/libraries.html#eeprom
   EEPROM.begin(512);
 
-  /*
-    s.brightness = Blue_Brightness;
-    strncpy(s.ssid, ssid, 32);
-    strncpy(s.password, password, 32);
-    EEPROM.put(0, s);
-    EEPROM.commit();
-    */
   EEPROM.get(0, s);
-  //  strcpy(s.ssid,"Looney");
-  //  strcpy(s.password,"TinyandTooney");
-  strcpy(s.ssid, "Magister");
-  strcpy(s.password, "Magister");
+
+  // If needed, set these to boostrap into your network.  Can delete; will be saved and recalled from EEPROM next time.
+//  strcpy(s.ssid,"<your SSID>");
+//  strcpy(s.password,"<your network password>");
+
+  EEPROM.put(0, s);
+  EEPROM.commit();
 
   Serial << F("Size of Settings:") << sizeof(s) << endl;
-  Serial << F("SSID:") << s.ssid << endl;
-  Serial << F("password:") << s.password << endl;
+  Serial << F("Connecting to SSID: ") << s.ssid << endl;
 
   WiFi.mode(WIFI_STA); // don't need AP
   WiFi.begin(s.ssid, s.password);
@@ -400,7 +397,7 @@ void setup(void) {
 
   // Wait for connection
   while (WiFi.status() != WL_CONNECTED) {
-    delay(500);
+    FastLED.delay(500);
     Serial.print(".");
   }
   Serial.println("");
@@ -441,19 +438,30 @@ void setup(void) {
 
   // add LEDs
   FastLED.addLeds<LED_TYPE, DATA_PIN, COLOR_ORDER>(leds, N_LED).setCorrection(TypicalSMD5050);
+//  FastLED.addLeds<LED_TYPE, DATA_PIN>(leds, N_LED).setCorrection(TypicalSMD5050);
   // set master brightness control
   FastLED.setBrightness(255);
+//  FastLED.setDither( 0 ); // can't do this with WiFi stack?
+
+/*  
+  FastLED.clear();
+  FastLED.show();
+  delay(1000);
 
   fill_solid(leds, N_LED, CRGB::Red);
   FastLED.show();
-  delay(1000);
+  delay(5000);
+  
   fill_solid(leds, N_LED, CRGB::Green);
   FastLED.show();
-  delay(1000);
+  delay(5000);
+  
   fill_solid(leds, N_LED, CRGB::Blue);
   FastLED.show();
-  delay(1000);
-  fill_solid(leds, N_LED, currentColor);
+  delay(5000);
+*/  
+  FastLED.clear();
+  currentColor = CRGB::Black;
   FastLED.show();
 
   updateFromSettings();
