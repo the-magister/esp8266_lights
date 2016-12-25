@@ -93,6 +93,8 @@ CRGB getCheerLightsColor() {
   }
 
   Serial << endl;
+
+  client.stop();
   return ( lastColor );
 }
 
@@ -148,23 +150,52 @@ void returnForm() {
   // dynamic form
   message += "<FORM action=\"/\" method=\"post\">";
   message += "<P>";
-  message += "Color<br>";
-  message += radioInput("Color", "0", s.color == 0, "Off") + "<BR>";
-  message += radioInput("Color", "1", s.color == 1, "CheerLights") + "<BR>";
-  // https://github.com/FastLED/FastLED/wiki/Pixel-reference
-  message += radioInput("Color", "2", s.color == 2, "FairyLight") + "<BR>";
-  message += radioInput("Color", "3", s.color == 3, "White") + "<BR>";
-  message += radioInput("Color", "4", s.color == 4, "Snow") + "<BR>";
-  message += radioInput("Color", "5", s.color == 5, "OldLace") + "<BR>";
-  message += "<br>";
 
-  message += "Sparkles ";
-  message += radioInput("Sparkles", "0", !s.sparkles, "Off") ;
-  message += radioInput("Sparkles", "1", s.sparkles, "On");
-  message += "<br><br>";
-
+  message += "<h4>Controls</h4>";
   message += "Brightness ";
   message += numberInput("Brightness", s.bright, 0, 255);
+
+  message += "  Sparkles ";
+  message += radioInput("Sparkles", "0", !s.sparkles, "Off") ;
+  message += radioInput("Sparkles", "1", s.sparkles, "On");
+
+  message += "<h4>Color</h4>";
+  message += radioInput("Color", "0", s.color == 0, "Off") + " ";
+  message += radioInput("Color", "1", s.color == 1, "CheerLights") + " ";
+  message += "<br><br>";
+
+  message += "Whites: ";
+  message += radioInput("Color", "12", s.color == 12, "FairyLight");
+  message += radioInput("Color", "13", s.color == 13, "White");
+  message += radioInput("Color", "14", s.color == 14, "Snow");
+  message += "<br><br>";
+
+  message += "CheerLights: ";
+  message += radioInput("Color", "2", s.color == 2, "Red");
+  message += radioInput("Color", "3", s.color == 3, "Green");
+  message += radioInput("Color", "4", s.color == 4, "Blue");
+  message += radioInput("Color", "5", s.color == 5, "Cyan");
+  message += radioInput("Color", "6", s.color == 6, "OldLace");
+  message += radioInput("Color", "7", s.color == 7, "Purple");
+  message += radioInput("Color", "8", s.color == 8, "Magenta");
+  message += radioInput("Color", "9", s.color == 9, "Yellow");
+  message += radioInput("Color", "10", s.color == 10, "Orange");
+  message += radioInput("Color", "11", s.color == 11, "Pink");
+  message += "<br><br>";
+
+  message += "For Patty: ";
+  message += radioInput("Color", "15", s.color == 15, "DarkGreen");
+  message += radioInput("Color", "16", s.color == 16, "Brown");
+  message += radioInput("Color", "17", s.color == 17, "Crimson");
+  message += radioInput("Color", "18", s.color == 18, "CornflowerBlue");
+  message += radioInput("Color", "19", s.color == 19, "CadetBlue");
+  message += radioInput("Color", "20", s.color == 20, "Indigo");
+  message += radioInput("Color", "21", s.color == 21, "DeepPink");
+  message += radioInput("Color", "22", s.color == 22, "LightCoral");
+  message += radioInput("Color", "23", s.color == 23, "MediumVioletRed");
+  message += radioInput("Color", "24", s.color == 24, "PaleVioletRed");
+  message += radioInput("Color", "25", s.color == 25, "LightSlateGray");
+  message += radioInput("Color", "26", s.color == 26, "Goldenrod");
   message += "<br><br>";
 
   message += "<INPUT type=\"submit\" value=\"Update Lights\">";
@@ -212,12 +243,44 @@ void handleNotFound() {
 void updateFromSettings() {
 
   switch ( s.color ) {
+
     case 0 : newColor = CRGB::Black; break;
+
     case 1 : newColor = getCheerLightsColor(); break;
-    case 2 : newColor = CRGB::FairyLight; break;
-    case 3 : newColor = CRGB::White; break;
-    case 4 : newColor = CRGB::Snow; break;
-    case 5 : newColor = CRGB::OldLace; break;
+
+    // https://github.com/FastLED/FastLED/wiki/Pixel-reference
+
+    // Cheerlights colors
+    case 2 : newColor = CRGB::Red; break;
+    case 3 : newColor = CRGB::Green; break;
+    case 4 : newColor = CRGB::Blue; break;
+    case 5 : newColor = CRGB::Cyan; break;
+    case 6 : newColor = CRGB::OldLace; break;
+    case 7 : newColor = CRGB::Purple; break;
+    case 8 : newColor = CRGB::Magenta; break;
+    case 9 : newColor = CRGB::Yellow; break;
+    case 10: newColor = CRGB::Orange; break;
+    case 11: newColor = CRGB::Pink; break;
+
+    // Whites
+    case 12: newColor = CRGB::FairyLight; break;
+    case 13: newColor = CRGB::White; break;
+    case 14: newColor = CRGB::Snow; break;
+
+    // Custom colors for Patty
+    case 15: newColor = CRGB::DarkGreen; break;
+    case 16: newColor = CRGB::Brown; break;
+    case 17: newColor = CRGB::Crimson; break;
+    case 18: newColor = CRGB::CornflowerBlue; break;
+    case 19: newColor = CRGB::CadetBlue; break;
+    case 20: newColor = CRGB::Indigo; break;
+    case 21: newColor = CRGB::DeepPink; break;
+    case 22: newColor = CRGB::LightCoral; break;
+    case 23: newColor = CRGB::MediumVioletRed; break;
+    case 24: newColor = CRGB::PaleVioletRed; break;
+    case 25: newColor = CRGB::LightSlateGray; break;
+    case 26: newColor = CRGB::Goldenrod; break;
+
   }
 
   // set master brightness control
@@ -231,7 +294,7 @@ void updateFromSettings() {
 }
 
 void addSparkles(fract8 chanceOfGlitter) {
-  if( random8() < chanceOfGlitter) {
+  if ( random8() < chanceOfGlitter) {
     leds[ random16(N_LED) ] += CRGB::White;
   }
 }
@@ -253,18 +316,18 @@ void animations() {
 
       // do a shift, but not for too long
       maxBlend = qadd8(maxBlend, 1);
-      if( maxBlend < 255 ) currentColor = blend(currentColor, newColor, maxBlend);
+      if ( maxBlend < 255 ) currentColor = blend(currentColor, newColor, maxBlend);
       else currentColor = newColor;
-      
+
     } else {
       maxBlend = 1;
     }
-    
+
     // render
     fill_solid(leds, N_LED, currentColor);
 
     // add some glitter
-    if( s.color !=0 && s.sparkles ) addSparkles(24);
+    if ( s.color != 0 && s.sparkles ) addSparkles(24);
 
     blueOff();
   }
@@ -295,6 +358,14 @@ void heartBeat() {
 
   if ( WiFi.status() == WL_DISCONNECTED ) {
     Serial << F("WiFi disconnected!") << endl;
+  }
+
+  //connect wifi if not connected
+  if (WiFi.status() != WL_CONNECTED) {
+    delay(1);
+    WiFi.disconnect();
+    WiFi.begin(s.ssid, s.password);
+    return;
   }
 
   // auto update from the webz
@@ -338,11 +409,11 @@ void getTime() {
 
   // Read all the lines of the reply from server and print them to Serial
   // 57744 16-12-22 20:41:02 00 1 0 193.5 UTC(NIST) *
-  
+
   char buffer[12];
   String dateTime = "";
 
-  while(client.available())
+  while (client.available())
   {
     String line = client.readStringUntil('\r');
 
@@ -352,7 +423,7 @@ void getTime() {
     } else
     {
       Serial.println(line);
-      String Hour = line.substring(16,16+2);
+      String Hour = line.substring(16, 16 + 2);
       Serial.println(Hour);
       /*
       // date starts at pos 7
@@ -382,8 +453,8 @@ void setup(void) {
   EEPROM.get(0, s);
 
   // If needed, set these to boostrap into your network.  Can delete; will be saved and recalled from EEPROM next time.
-//  strcpy(s.ssid,"<your SSID>");
-//  strcpy(s.password,"<your network password>");
+  //  strcpy(s.ssid,"<your SSID>");
+  //  strcpy(s.password,"<your network password>");
 
   EEPROM.put(0, s);
   EEPROM.commit();
@@ -438,28 +509,28 @@ void setup(void) {
 
   // add LEDs
   FastLED.addLeds<LED_TYPE, DATA_PIN, COLOR_ORDER>(leds, N_LED).setCorrection(TypicalSMD5050);
-//  FastLED.addLeds<LED_TYPE, DATA_PIN>(leds, N_LED).setCorrection(TypicalSMD5050);
+  //  FastLED.addLeds<LED_TYPE, DATA_PIN>(leds, N_LED).setCorrection(TypicalSMD5050);
   // set master brightness control
   FastLED.setBrightness(255);
-//  FastLED.setDither( 0 ); // can't do this with WiFi stack?
+  //  FastLED.setDither( 0 ); // can't do this with WiFi stack?
 
-/*  
-  FastLED.clear();
-  FastLED.show();
-  delay(1000);
+  /*
+    FastLED.clear();
+    FastLED.show();
+    delay(1000);
 
-  fill_solid(leds, N_LED, CRGB::Red);
-  FastLED.show();
-  delay(5000);
-  
-  fill_solid(leds, N_LED, CRGB::Green);
-  FastLED.show();
-  delay(5000);
-  
-  fill_solid(leds, N_LED, CRGB::Blue);
-  FastLED.show();
-  delay(5000);
-*/  
+    fill_solid(leds, N_LED, CRGB::Red);
+    FastLED.show();
+    delay(5000);
+
+    fill_solid(leds, N_LED, CRGB::Green);
+    FastLED.show();
+    delay(5000);
+
+    fill_solid(leds, N_LED, CRGB::Blue);
+    FastLED.show();
+    delay(5000);
+  */
   FastLED.clear();
   currentColor = CRGB::Black;
   FastLED.show();
