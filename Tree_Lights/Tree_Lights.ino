@@ -453,11 +453,10 @@ void setup(void) {
   EEPROM.get(0, s);
 
   // If needed, set these to boostrap into your network.  Can delete; will be saved and recalled from EEPROM next time.
-  //  strcpy(s.ssid,"<your SSID>");
-  //  strcpy(s.password,"<your network password>");
-
-  EEPROM.put(0, s);
-  EEPROM.commit();
+  //  strcpy(s.ssid,"<your SSID>"); // set your SSID
+  //  strcpy(s.password,"<your network password>"); // set your password
+  //  EEPROM.put(0, s); // ready EEPROM update
+  //  EEPROM.commit(); // push it
 
   Serial << F("Size of Settings:") << sizeof(s) << endl;
   Serial << F("Connecting to SSID: ") << s.ssid << endl;
