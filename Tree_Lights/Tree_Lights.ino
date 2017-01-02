@@ -42,7 +42,7 @@ struct Settings {
   char password[32];
 
   byte color;
-  boolean sparkles;
+  byte sparkles;
   byte bright;
 };
 Settings s;
@@ -156,8 +156,7 @@ void returnForm() {
   message += numberInput("Brightness", s.bright, 0, 255);
 
   message += "  Sparkles ";
-  message += radioInput("Sparkles", "0", !s.sparkles, "Off") ;
-  message += radioInput("Sparkles", "1", s.sparkles, "On");
+  message += numberInput("Sparkles", s.sparkles, 0, 255);
 
   message += "<h4>Color</h4>";
   message += radioInput("Color", "0", s.color == 0, "Off") + " ";
@@ -327,7 +326,7 @@ void animations() {
     fill_solid(leds, N_LED, currentColor);
 
     // add some glitter
-    if ( s.color != 0 && s.sparkles ) addSparkles(24);
+    if ( s.color != 0 && s.sparkles > 0 ) addSparkles(s.sparkles);
 
     blueOff();
   }
@@ -362,7 +361,7 @@ void heartBeat() {
 
   //connect wifi if not connected
   if (WiFi.status() != WL_CONNECTED) {
-    delay(1);
+    delay(10);
     WiFi.disconnect();
     WiFi.begin(s.ssid, s.password);
     return;
@@ -481,7 +480,21 @@ void setup(void) {
   Serial.println(WiFi.gatewayIP());
   Serial.print("RSSI: ");
   Serial.println(WiFi.RSSI());
-
+  byte mac[6];
+  WiFi.macAddress(mac);
+  Serial.print("MAC: ");
+  Serial.print(mac[5],HEX);
+  Serial.print(":");
+  Serial.print(mac[4],HEX);
+  Serial.print(":");
+  Serial.print(mac[3],HEX);
+  Serial.print(":");
+  Serial.print(mac[2],HEX);
+  Serial.print(":");
+  Serial.print(mac[1],HEX);
+  Serial.print(":");
+  Serial.println(mac[0],HEX);
+  
   if ( MDNS.begin ( "treelights" ) ) {
     Serial.println ( "MDNS responder started" );
   }
@@ -490,7 +503,7 @@ void setup(void) {
   server.onNotFound(handleNotFound);
 
   server.begin();
-  Serial.print("Connect to http://TreeLights.the-magister.com or http://");
+  Serial.print("Connect to http://treelights.hsd1.wa.comcast.net/ or http://");
   Serial.println(WiFi.localIP());
 
   pinMode(RED_LED_PIN, OUTPUT);
