@@ -29,10 +29,12 @@ const int BLUE_LED_PIN = 2;
 
 // LED light defs
 #define DATA_PIN   13
-#define LED_TYPE    WS2812B // gotta be.  the controller is in the 5050 package.
-#define COLOR_ORDER GRB // got green, *mush*, red
-#define N_LED    108
-CRGB leds[N_LED];
+#define LED_TYPE    WS2811 // controller
+#define COLOR_ORDER RGB // color order
+#define N_LED_PER_SEGMENT 30 // number of LEDs per wire segments
+#define MAX_SEGMENTS 10 // how many segments can we handle?
+int n_led = N_LED_PER_SEGMENT*MAX_SEGMENTS;
+CRGB leds[N_LED_PER_SEGMENT*MAX_SEGMENTS];
 
 // general controls
 #define FRAMES_PER_SECOND   20UL
@@ -45,6 +47,7 @@ struct Settings {
   byte color;
   byte sparkles;
   byte bright;
+  byte segments;
 };
 Settings s;
 
@@ -159,6 +162,9 @@ void returnForm() {
   message += "  Sparkles ";
   message += numberInput("Sparkles", s.sparkles, 0, 255);
 
+  message += "  Segments ";
+  message += numberInput("Segments", s.segments, 1, MAX_SEGMENTS);
+
   message += "<h4>Color</h4>";
   message += radioInput("Color", "0", s.color == 0, "Off") + " ";
   message += radioInput("Color", "1", s.color == 1, "CheerLights") + " ";
@@ -218,9 +224,11 @@ void handleSubmit() {
   s.color = server.arg("Color").toInt();
   s.sparkles = server.arg("Sparkles").toInt();
   s.bright = server.arg("Brightness").toInt();
+  s.segments = server.arg("Segments").toInt();
 
   // display
-  Serial << F("Request: color=") << s.color << F(" sparkles=") << s.sparkles << F(" brightness=") << s.bright << endl;
+  Serial << F("Request: color=") << s.color << F(" sparkles=") << s.sparkles; 
+  Serial << F(" brightness=") << s.bright << F(" segments=") << s.segments << endl;
 
   updateFromSettings();
 }
@@ -286,8 +294,9 @@ void updateFromSettings() {
   // set master brightness control
   FastLED.setBrightness(s.bright);
 
-  // TODO: sparkles
-
+  // set real-time segment count
+  n_led = N_LED_PER_SEGMENT * s.segments;
+  
   // push settings to EEPROM for power-up recovery
   EEPROM.put(0, s);
   EEPROM.commit();
@@ -295,7 +304,7 @@ void updateFromSettings() {
 
 void addSparkles(fract8 chanceOfGlitter) {
   if ( random8() < chanceOfGlitter) {
-    leds[ random16(N_LED) ] += CRGB::White;
+    leds[ random16(n_led) ] += CRGB::White;
   }
 }
 
@@ -324,7 +333,7 @@ void animations() {
     }
 
     // render
-    fill_solid(leds, N_LED, currentColor);
+    fill_solid(leds, n_led, currentColor);
 
     // add some glitter
     if ( s.color != 0 && s.sparkles > 0 ) addSparkles(s.sparkles);
@@ -383,6 +392,7 @@ void heartBeat() {
   Serial << F("  Current RGB: ") << currentColor.red << F("/") << currentColor.green << F("/") << currentColor.blue;
   Serial << F("  Brightness: ") << s.bright;
   Serial << F("  Sparkles: ") << s.sparkles;
+  Serial << F("  Segments: ") << s.segments;
   Serial << F("  FPS reported: ") << FastLED.getFPS();
   Serial << endl;
 
@@ -529,8 +539,8 @@ void setup(void) {
   message.reserve(4096);
 
   // add LEDs
-  FastLED.addLeds<LED_TYPE, DATA_PIN, COLOR_ORDER>(leds, N_LED).setCorrection(TypicalSMD5050);
-  //  FastLED.addLeds<LED_TYPE, DATA_PIN>(leds, N_LED).setCorrection(TypicalSMD5050);
+  n_led = N_LED_PER_SEGMENT*s.segments;
+  FastLED.addLeds<LED_TYPE, DATA_PIN, COLOR_ORDER>(leds, N_LED_PER_SEGMENT*MAX_SEGMENTS).setCorrection(TypicalSMD5050);
   // set master brightness control
   FastLED.setBrightness(255);
   //  FastLED.setDither( 0 ); // can't do this with WiFi stack?
