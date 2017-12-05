@@ -1,6 +1,6 @@
 
 /*
-   For the ESP8266 via Adafruit's Feather Huzzah
+   For the Wemos D1 & Mini
 
    http://esp8266.github.io/Arduino/versions/2.0.0/doc/libraries.html for details on libraries
 
@@ -24,17 +24,45 @@ FASTLED_USING_NAMESPACE
 ESP8266WebServer server(80);
 String message = "";
 
-const int RED_LED_PIN = 0;
-const int BLUE_LED_PIN = 2;
+// pin definitions
+// C:\Users\MikeD\AppData\Local\Arduino15\packages\esp8266\hardware\esp8266\2.3.0\variants\d1_mini
+/*
+static const uint8_t SDA = 4;
+static const uint8_t SCL = 5;
 
+static const uint8_t LED_BUILTIN = 2;
+static const uint8_t BUILTIN_LED = 2;
+
+static const uint8_t D0   = 16;
+static const uint8_t D1   = 5;
+static const uint8_t D2   = 4;
+static const uint8_t D3   = 0;
+static const uint8_t D4   = 2;
+static const uint8_t D5   = 14;
+static const uint8_t D6   = 12;
+static const uint8_t D7   = 13;
+static const uint8_t D8   = 15;
+static const uint8_t RX   = 3;
+static const uint8_t TX   = 1;
+*/
 // LED light defs
-#define DATA_PIN   13
-#define LED_TYPE    WS2811 // controller
-#define COLOR_ORDER RGB // color order
-#define N_LED_PER_SEGMENT 50 // number of LEDs per wire segments
-#define MAX_SEGMENTS 5 // how many segments can we handle?
-int n_led = N_LED_PER_SEGMENT * MAX_SEGMENTS;
-CRGB leds[N_LED_PER_SEGMENT * MAX_SEGMENTS];
+#define NUM_LEDS_1 20
+#define CLOCK_PIN1 D6
+#define DATA_PIN1 D5
+
+#define NUM_LEDS_2 20
+#define CLOCK_PIN2 D8
+#define DATA_PIN2 D7
+
+#define NUM_LEDS_3 60*5
+#define CLOCK_PIN3 D2
+#define DATA_PIN3 D1
+
+// This is an array of leds.  One item for each led in your strip.
+#define NUM_B_LED NUM_LEDS_1+NUM_LEDS_2
+CRGB bLeds[NUM_B_LED];
+#define NUM_L_LED NUM_LEDS_3
+CRGB lLeds[NUM_L_LED];
 
 // general controls
 #define FRAMES_PER_SECOND   20UL
@@ -138,6 +166,19 @@ const TProgmemRGBPalette16 Ice_p FL_PROGMEM =
   Ice_Blue2, Ice_Blue2, Ice_Blue2, Ice_Blue3
 };
 
+// A cold, icy pale blue palette
+#define Dblu 0x1C74BA
+#define LBlu 0x02B4F0
+#define Dorn 0xF0592A
+#define Wat  0xF7A619
+#define Grod 0xF8A519
+const TProgmemRGBPalette16 Perteet_p FL_PROGMEM =
+{
+  Dblu, Dblu, Dblu, Dblu,
+  Wat, Wat, Dorn, Dorn,
+  LBlu, LBlu, LBlu, LBlu,
+  Grod, Grod, Dorn, Dorn
+};
 
 CRGB getCheerLightsColor() {
   static CRGB lastColor = CRGB::Black;
@@ -188,13 +229,13 @@ CRGB getCheerLightsColor() {
 }
 
 void handleRoot() {
-  blueOn();
+  ledOn();
   if (server.hasArg("Color")) {
     handleSubmit();
   }
 
   returnForm();
-  blueOff();
+  ledOff();
 }
 
 void returnFail(String msg) {
@@ -208,13 +249,13 @@ const char HEAD_FORM[] PROGMEM =
   "<html>"
   "<head>"
   "<meta name = \"viewport\" content = \"width = device-width, initial-scale = 1.0, maximum-scale = 1.0, user-scalable=0\">"
-  "<title>Christmas Tree Lights</title>"
+  "<title>Patty's Desk Lights</title>"
   "<style>"
   "\"body { background-color: #808080; font-family: Arial, Helvetica, Sans-Serif; Color: #000000; }\""
   "</style>"
   "</head>"
   "<body>"
-  "<h2>Christmas Tree Lights</h2>"
+  "<h2>Patty's Desk Lights</h2>"
   ;
 
 const char TAIL_FORM[] PROGMEM =
@@ -246,9 +287,6 @@ void returnForm() {
 
   message += "  Sparkles ";
   message += numberInput("Sparkles", s.sparkles, 0, 255);
-
-  message += "  Segments ";
-  message += numberInput("Segments", s.segments, 1, MAX_SEGMENTS);
 
   message += "<h4>Color</h4>";
   message += radioInput("Color", "0", s.color == 0, "Off") + " ";
@@ -298,6 +336,7 @@ void returnForm() {
   message += radioInput("Color", "55", s.color == 55, "Snow");
   message += radioInput("Color", "56", s.color == 56, "RetroC9");
   message += radioInput("Color", "57", s.color == 57, "Ice");
+  message += radioInput("Color", "58", s.color == 58, "Perteet");
   message += "<br><br>";
 
   message += "<INPUT type=\"submit\" value=\"Update Lights\">";
@@ -394,13 +433,11 @@ void updateFromSettings() {
     case 55: currentPalette = Snow_p; break;
     case 56: currentPalette = RetroC9_p; break;
     case 57: currentPalette = Ice_p; break;
+    case 58: currentPalette = Perteet_p; break;
   }
 
   // set master brightness control
   FastLED.setBrightness(s.bright);
-
-  // set real-time segment count
-  n_led = N_LED_PER_SEGMENT * s.segments;
 
   // push settings to EEPROM for power-up recovery
   EEPROM.put(0, s);
@@ -409,27 +446,32 @@ void updateFromSettings() {
 
 void addSparkles(fract8 chanceOfGlitter) {
   if ( random8() < chanceOfGlitter) {
-    leds[ random16(n_led) ] += CRGB::White;
+    bLeds[ random16(NUM_B_LED) ] += CRGB::White;
+    lLeds[ random16(NUM_L_LED) ] += CRGB::White;
   }
 }
 
 void animations() {
   static byte maxBlend = 1;
   static byte colorIndex = 0;
-
+  
   // do some periodic updates
   EVERY_N_MILLISECONDS( 1000UL / FRAMES_PER_SECOND ) {
-    blueOn();
+    ledOn();
 
-    if ( s.color >= 50 ) {
+    if( s.color >= 50 ) {
       // pallettes
       colorIndex ++;
       byte j = 0;
-      for ( int i = 0; i < n_led; i++) {
-        leds[i] = ColorFromPalette( currentPalette, colorIndex + j, 255, LINEARBLEND);
+      for( int i = 0; i < NUM_B_LED; i++) {
+        bLeds[i] = ColorFromPalette( currentPalette, colorIndex+j, 255, LINEARBLEND);        
         j++;
       }
-    } else {
+      for( int i = 0; i < NUM_L_LED; i++) {
+        lLeds[i] = ColorFromPalette( currentPalette, colorIndex+j, 255, LINEARBLEND);        
+        j++;
+      }
+    } else { 
       // solids
 
       // perform a blend across all leds to the new color
@@ -437,21 +479,22 @@ void animations() {
         //      Serial << currentColor.red << F("/") << currentColor.green << F("/") << currentColor.blue;
         //      Serial << F(" -> ");
         //      Serial << newColor.red << F("/") << newColor.green << F("/") << newColor.blue;
-        //      Serial << endl;
-
+        //      Serial << endl;  
+ 
         // do a shift, but not for too long
         maxBlend = qadd8(maxBlend, 1);
         if ( maxBlend < 255 ) currentColor = blend(currentColor, newColor, maxBlend);
         else currentColor = newColor;
-
+  
       } else {
         maxBlend = 1;
       }
-
+  
       // render
-      fill_solid(leds, n_led, currentColor);
+      fill_solid(bLeds, NUM_B_LED, currentColor);
+      fill_solid(lLeds, NUM_L_LED, currentColor);
     }
-
+    
     // add some glitter
     if ( s.color != 0 && s.sparkles > 0 ) addSparkles(s.sparkles);
 
@@ -460,24 +503,19 @@ void animations() {
   // send the 'leds' array out to the actual LED strip
   FastLED.show();
 
-  blueOff();
+  ledOff();
 }
 
-void redOff() {
-  digitalWrite(RED_LED_PIN, HIGH);
+void ledOff() {
+  digitalWrite(LED_BUILTIN, HIGH);
 }
-void redOn() {
-  digitalWrite(RED_LED_PIN, LOW);
+void ledOn() {
+  digitalWrite(LED_BUILTIN, LOW);
 }
-void blueOff() {
-  digitalWrite(BLUE_LED_PIN, HIGH);
-}
-void blueOn() {
-  digitalWrite(BLUE_LED_PIN, LOW);
-}
+
 
 void heartBeat() {
-  redOff();
+  ledOff();
 
   if ( WiFi.status() == WL_CONNECTION_LOST ) {
     Serial << F("WiFi connection lost!") << endl;
@@ -514,7 +552,7 @@ void heartBeat() {
   Serial << F("  FPS reported: ") << FastLED.getFPS();
   Serial << endl;
 
-  redOn();
+  ledOn();
 }
 
 void getTime() {
@@ -583,7 +621,7 @@ void connect(void) {
   //if it does not connect it starts an access point with the specified name
   //here  "AutoConnectAP"
   //and goes into a blocking loop awaiting configuration
-  if (!wifiManager.autoConnect("TreeLightsAP")) {
+  if (!wifiManager.autoConnect("DeskLightsAP")) {
     Serial.println("failed to connect and hit timeout");
     delay(3000);
     //reset and try again, or maybe put it to deep sleep
@@ -618,7 +656,7 @@ void connect(void) {
   Serial.print(":");
   Serial.println(mac[0], HEX);
 
-  if ( MDNS.begin ( "treelights" ) ) {
+  if ( MDNS.begin ( "desklights" ) ) {
     Serial.println ( "MDNS responder started" );
   }
 
@@ -640,18 +678,15 @@ void setup(void) {
   server.onNotFound(handleNotFound);
 
   server.begin();
-  Serial.print("Connect to http://treelights.hsd1.wa.comcast.net/ or http://");
+  Serial.print("Connect to http://");
   Serial.println(WiFi.localIP());
 
   // Add service to MDNS-SD
   MDNS.addService("http", "tcp", 80);
   Serial.println(" ... or possibly http://treelights.local");
 
-  pinMode(RED_LED_PIN, OUTPUT);
-  redOn();
-
-  pinMode(BLUE_LED_PIN, OUTPUT);
-  blueOff();
+  pinMode(BUILTIN_LED, OUTPUT);
+  ledOn();
 
   // all pwm is software emulation; need to crank up the frequency with FastLED
   analogWriteRange(256 - 1);
@@ -661,29 +696,34 @@ void setup(void) {
   message.reserve(4096);
 
   // add LEDs
-  n_led = N_LED_PER_SEGMENT * s.segments;
-  FastLED.addLeds<LED_TYPE, DATA_PIN, COLOR_ORDER>(leds, N_LED_PER_SEGMENT * MAX_SEGMENTS).setCorrection(TypicalSMD5050);
-  // set master brightness control
+  FastLED.addLeds<WS2801, DATA_PIN1, CLOCK_PIN1, BGR>(bLeds, 0, NUM_LEDS_1);
+  FastLED.addLeds<WS2801, DATA_PIN2, CLOCK_PIN2, BGR>(bLeds, NUM_LEDS_1, NUM_LEDS_2);
+
+  FastLED.addLeds<APA102, DATA_PIN3, CLOCK_PIN3, BGR>(lLeds, NUM_L_LED);
+
   FastLED.setBrightness(255);
   //  FastLED.setDither( 0 ); // can't do this with WiFi stack?
 
-
-  FastLED.clear();
+  /*
+  fill_solid(bLeds, NUM_B_LED, CRGB::Red);
+  fill_solid(lLeds, NUM_L_LED, CRGB::Red);
   FastLED.show();
   delay(1000);
 
-  fill_solid(leds, N_LED_PER_SEGMENT * MAX_SEGMENTS, CRGB::Red);
+  fill_solid(bLeds, NUM_B_LED, CRGB::Green);
+  fill_solid(lLeds, NUM_L_LED, CRGB::Green);
   FastLED.show();
-  delay(5000);
+  delay(1000);
 
-  fill_solid(leds, N_LED_PER_SEGMENT * MAX_SEGMENTS, CRGB::Green);
+  fill_solid(bLeds, NUM_B_LED, CRGB::Blue);
+  fill_solid(lLeds, NUM_L_LED, CRGB::Blue);
   FastLED.show();
-  delay(5000);
+  delay(1000);
 
-  fill_solid(leds, N_LED_PER_SEGMENT * MAX_SEGMENTS, CRGB::Blue);
+  FastLED.clear();
   FastLED.show();
-  delay(5000);
-
+  */
+  
   FastLED.clear();
   currentColor = CRGB::Black;
   FastLED.show();
@@ -750,7 +790,8 @@ const TProgmemRGBPalette16* ActivePaletteList[] = {
   &RedWhite_p,
   &Snow_p,
   &Holly_p,
-  &Ice_p
+  &Ice_p,
+  &Perteet_p
 };
 
 
