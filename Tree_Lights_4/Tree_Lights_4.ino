@@ -1,4 +1,3 @@
-
 /*
    For the ESP8266 via Adafruit's Feather Huzzah
 
@@ -7,8 +6,9 @@
 */
 
 #include <ESP8266WiFi.h>
-#include <ESP8266mDNS.h> // add mDNS to overcome ping timeout issues
-#include <DNSServer.h>
+#include <ESP8266mDNS.h>
+#include <WiFiUdp.h>
+#include <ArduinoOTA.h>
 #include <ESP8266WebServer.h>
 #include <WiFiManager.h>
 #include <WiFiClient.h>
@@ -32,7 +32,7 @@ const int BLUE_LED_PIN = 2;
 #define LED_TYPE    WS2811 // controller
 #define COLOR_ORDER RGB // color order
 #define N_LED_PER_SEGMENT 50 // number of LEDs per wire segments
-#define MAX_SEGMENTS 5 // how many segments can we handle?
+#define MAX_SEGMENTS 10 // how many segments can we handle?
 int n_led = N_LED_PER_SEGMENT * MAX_SEGMENTS;
 CRGB leds[N_LED_PER_SEGMENT * MAX_SEGMENTS];
 
@@ -150,6 +150,7 @@ const TProgmemRGBPalette16 Ice_p FL_PROGMEM =
 
 CRGB getCheerLightsColor() {
   static CRGB lastColor = CRGB::Black;
+  CRGB newColor;
 
   const char host[] = "api.thingspeak.com";
 
@@ -186,13 +187,20 @@ CRGB getCheerLightsColor() {
       g = (color & 0x00FF00) >>  8;
       b = (color & 0x0000FF);
       Serial << F("\t=>\tRed:") << r << F("  Green:") << g << F("  Blue:") << b;
-      lastColor = CRGB(r, g, b);
+      newColor = CRGB(r, g, b);
     }
   }
 
   Serial << endl;
-
   client.stop();
+
+  if ( newColor != lastColor ) {
+    cheerIndex += 5;
+    for ( byte k = 0; k < 8; k++ ) currentPalette[(k + cheerIndex) % 16] = newColor;
+  }
+     
+  lastColor = newColor;
+
   return ( lastColor );
 }
 
@@ -307,6 +315,7 @@ void returnForm() {
   message += radioInput("Color", "55", s.color == 55, "Snow");
   message += radioInput("Color", "56", s.color == 56, "RetroC9");
   message += radioInput("Color", "57", s.color == 57, "Ice");
+  message += radioInput("Color", "58", s.color == 58, "Cheerlights");
   message += "<br><br>";
 
   message += "<INPUT type=\"submit\" value=\"Update Lights\">";
@@ -359,11 +368,7 @@ void updateFromSettings() {
 
     case 0 : newColor = CRGB::Black; break;
 
-    case 1 : 
-      newColor = getCheerLightsColor();
-      currentPalette = CheerLights_p;
-      cheerIndex = 0;
-      break;
+    case 1 : newColor = getCheerLightsColor(); break;
 
     // https://github.com/FastLED/FastLED/wiki/Pixel-reference
 
@@ -407,6 +412,7 @@ void updateFromSettings() {
     case 55: currentPalette = Snow_p; break;
     case 56: currentPalette = RetroC9_p; break;
     case 57: currentPalette = Ice_p; break;
+    case 58: currentPalette = CheerLights_p; break;
   }
 
   // set master brightness control
@@ -456,48 +462,29 @@ void animations() {
         maxBlend = qadd8(maxBlend, 1);
         if ( maxBlend < 255 ) {
           currentColor = blend(currentColor, newColor, maxBlend);
-          // assume we need to fade into a new color for cheerlights, too.
-          // assign half of the palette to the new color
-          for ( byte k = 0; k < 8; k++ ) currentPalette[(k + cheerIndex) % 16] = currentColor;
         } else {
           // finished the transition
           currentColor = newColor;
         }
 
       } else {
-        if ( maxBlend != 1 ) {
-          // increment cheerIndex
-          cheerIndex += 5;
-          if (cheerIndex >= 16) cheerIndex = 0;
-        }
         maxBlend = 1;
       }
 
-      if ( s.color != 1 ) {
-        // render
-        fill_solid(leds, n_led, currentColor);
-      } else {
-        // cheerlights
-        // pallettes
-        colorIndex ++;
-        byte j = 0;
-        for ( int i = 0; i < n_led; i++) {
-          leds[i] = ColorFromPalette( currentPalette, colorIndex + j, 255, LINEARBLEND);
-          j++;
-        }
-      }
+      fill_solid(leds, n_led, currentColor);
+
     }
 
     // add some glitter
     if ( s.color != 0 && s.sparkles > 0 ) addSparkles(s.sparkles);
 
+    // send the 'leds' array out to the actual LED strip
+    FastLED.show();
+    blueOff();
   }
 
-  // send the 'leds' array out to the actual LED strip
-  FastLED.show();
-
-  blueOff();
 }
+
 
 void redOff() {
   digitalWrite(RED_LED_PIN, HIGH);
@@ -533,7 +520,7 @@ void heartBeat() {
   }
 
   // auto update from the webz
-  if ( s.color == 1 ) newColor = getCheerLightsColor();
+  if ( s.color == 1 || s.color == 58 ) newColor = getCheerLightsColor();
 
   Serial << F("Status.");
   Serial << F("  Set Color: ");
@@ -614,7 +601,7 @@ void connect(void) {
 
   // will run the AP for three minutes and then try to reconnect
   wifiManager.setConfigPortalTimeout(180);
-
+ 
   //fetches ssid and pass and tries to connect
   //if it does not connect it starts an access point with the specified name
   //here  "AutoConnectAP"
@@ -658,6 +645,26 @@ void connect(void) {
     Serial.println ( "MDNS responder started" );
   }
 
+  Serial << "OTA host started. Bonjour service required." << endl;
+  ArduinoOTA.setHostname("Treelights");
+  ArduinoOTA.onStart([]() {
+    Serial.println("Start");
+  });
+  ArduinoOTA.onEnd([]() {
+    Serial.println("\nEnd");
+  });
+  ArduinoOTA.onProgress([](unsigned int progress, unsigned int total) {
+    Serial.printf("Progress: %u%%\n", (progress / (total / 100)));
+  });
+  ArduinoOTA.onError([](ota_error_t error) {
+    Serial.printf("Error[%u]: ", error);
+    if (error == OTA_AUTH_ERROR) Serial.println("Auth Failed");
+    else if (error == OTA_BEGIN_ERROR) Serial.println("Begin Failed");
+    else if (error == OTA_CONNECT_ERROR) Serial.println("Connect Failed");
+    else if (error == OTA_RECEIVE_ERROR) Serial.println("Receive Failed");
+    else if (error == OTA_END_ERROR) Serial.println("End Failed");
+  });
+  ArduinoOTA.begin();
 }
 
 void setup(void) {
@@ -734,6 +741,7 @@ void loop(void) {
   animations();
 
   server.handleClient();
+  ArduinoOTA.handle();
 
   static Metro heartbeat(15000UL);
   if ( heartbeat.check() ) {

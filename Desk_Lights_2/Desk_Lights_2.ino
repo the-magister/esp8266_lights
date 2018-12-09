@@ -1,4 +1,3 @@
-
 /*
    For the Wemos D1 & Mini
 
@@ -7,8 +6,9 @@
 */
 
 #include <ESP8266WiFi.h>
-#include <ESP8266mDNS.h> // add mDNS to overcome ping timeout issues
-#include <DNSServer.h>
+#include <ESP8266mDNS.h>
+#include <WiFiUdp.h>
+#include <ArduinoOTA.h>
 #include <ESP8266WebServer.h>
 #include <WiFiManager.h>
 #include <WiFiClient.h>
@@ -652,8 +652,10 @@ void getTime() {
 }
 
 void connect(void) {
-  WiFiManager wifiManager;
+  ledOn();
 
+  WiFiManager wifiManager;
+  
   // will run the AP for three minutes and then try to reconnect
   wifiManager.setConfigPortalTimeout(180);
 
@@ -699,7 +701,27 @@ void connect(void) {
   if ( MDNS.begin ( "desklights" ) ) {
     Serial.println ( "MDNS responder started" );
   }
-
+  
+  Serial << "OTA host started. Bonjour service required." << endl;
+  ArduinoOTA.setHostname("Desklights");
+  ArduinoOTA.onStart([]() {
+    Serial.println("Start");
+  });
+  ArduinoOTA.onEnd([]() {
+    Serial.println("\nEnd");
+  });
+  ArduinoOTA.onProgress([](unsigned int progress, unsigned int total) {
+    Serial.printf("Progress: %u%%\n", (progress / (total / 100)));
+  });
+  ArduinoOTA.onError([](ota_error_t error) {
+    Serial.printf("Error[%u]: ", error);
+    if (error == OTA_AUTH_ERROR) Serial.println("Auth Failed");
+    else if (error == OTA_BEGIN_ERROR) Serial.println("Begin Failed");
+    else if (error == OTA_CONNECT_ERROR) Serial.println("Connect Failed");
+    else if (error == OTA_RECEIVE_ERROR) Serial.println("Receive Failed");
+    else if (error == OTA_END_ERROR) Serial.println("End Failed");
+  });
+  ArduinoOTA.begin();
 }
 
 void setup(void) {
@@ -778,6 +800,7 @@ void loop(void) {
   animations();
 
   server.handleClient();
+  ArduinoOTA.handle();
 
   static Metro heartbeat(15000UL);
   if ( heartbeat.check() ) {
