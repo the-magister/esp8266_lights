@@ -512,9 +512,9 @@ void heartBeat() {
 
   //connect wifi if not connected
   if (WiFi.status() != WL_CONNECTED) {
-    delay(50);
+    FastLED.delay(50);
     WiFi.disconnect();
-    delay(50);
+    FastLED.delay(50);
     connect(); // and reconnect
     return;
   }
@@ -608,10 +608,10 @@ void connect(void) {
   //and goes into a blocking loop awaiting configuration
   if (!wifiManager.autoConnect("TreeLightsAP")) {
     Serial.println("failed to connect and hit timeout");
-    delay(3000);
+    FastLED.delay(3000);
     //reset and try again, or maybe put it to deep sleep
     ESP.reset();
-    delay(5000);
+    FastLED.delay(5000);
   }
 
   Serial.println("");
@@ -713,19 +713,19 @@ void setup(void) {
 
   FastLED.clear();
   FastLED.show();
-  delay(1000);
+  FastLED.delay(1000);
 
   fill_solid(leds, N_LED_PER_SEGMENT * MAX_SEGMENTS, CRGB::Red);
   FastLED.show();
-  delay(1000);
+  FastLED.delay(1000);
 
   fill_solid(leds, N_LED_PER_SEGMENT * MAX_SEGMENTS, CRGB::Green);
   FastLED.show();
-  delay(1000);
+  FastLED.delay(1000);
 
   fill_solid(leds, N_LED_PER_SEGMENT * MAX_SEGMENTS, CRGB::Blue);
   FastLED.show();
-  delay(1000);
+  FastLED.delay(1000);
 
   FastLED.clear();
   currentColor = CRGB::Black;

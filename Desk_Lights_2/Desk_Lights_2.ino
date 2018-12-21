@@ -656,6 +656,8 @@ void connect(void) {
 
   WiFiManager wifiManager;
   
+//  wifiManager.resetSettings();
+  
   // will run the AP for three minutes and then try to reconnect
   wifiManager.setConfigPortalTimeout(180);
 
@@ -665,6 +667,7 @@ void connect(void) {
   //and goes into a blocking loop awaiting configuration
   if (!wifiManager.autoConnect("DeskLightsAP")) {
     Serial.println("failed to connect and hit timeout");
+    
     delay(3000);
     //reset and try again, or maybe put it to deep sleep
     ESP.reset();
