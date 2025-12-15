@@ -22,7 +22,7 @@
 
   See file LICENSE.txt for further informations on licensing terms.
 
-  Last updated October 16th, 2016
+  Last updated August 17th, 2017
 */
 
 /*
@@ -37,6 +37,7 @@
   - Arduino WiFi Shield (or clone)
   - Arduino WiFi Shield 101
   - Arduino MKR1000 board
+  - Arduino MKRWIFI1010 board
   - ESP8266 WiFi board compatible with ESP8266 Arduino core
 
   Follow the instructions in the wifiConfig.h file (wifiConfig.h tab in Arduino IDE) to
@@ -289,6 +290,7 @@ void readAndReportData(byte address, int theRegister, byte numBytes, byte stopTX
     Firmata.sendString("I2C: Too many bytes received");
   } else if (numBytes > Wire.available()) {
     Firmata.sendString("I2C: Too few bytes received");
+    numBytes = Wire.available();
   }
 
   i2cRxData[0] = address;
@@ -675,7 +677,7 @@ void sysexCallback(byte command, byte argc, byte *argv)
     case I2C_CONFIG:
       delayTime = (argv[0] + (argv[1] << 7));
 
-      if (delayTime > 0) {
+      if (argc > 1 && delayTime > 0) {
         i2cReadDelayTime = delayTime;
       }
 
@@ -929,6 +931,8 @@ void initTransport()
   DEBUG_PRINTLN( "using the ESP8266 WiFi library." );
 #elif defined(HUZZAH_WIFI)
   DEBUG_PRINTLN( "using the HUZZAH WiFi library." );
+#elif defined(WIFI_NINA)
+  DEBUG_PRINTLN( "using the WiFi NINA library." );
   //else should never happen here as error-checking in wifiConfig.h will catch this
 #endif  //defined(WIFI_101)
 

@@ -1,23 +1,59 @@
 /*==================================================================================================
  * BLE CONFIGURATION
  *
- * If you are using an Arduino 101, you do not need to make any changes to this file (unless you
- * need a unique ble local name (see below). If you are using another supported BLE board or shield,
- * follow the instructions for the specific board or shield below.
- *
- * Make sure you have the Intel Curie Boards package v1.0.6 or higher installed via the Arduino
- * Boards Manager.
+ * If you are using a device supported by the ArduinoBLE library or an Arduino 101, you do not need
+ * to make any changes to this file (unless you need a unique ble local name (see below)). If you
+ * are using another supported BLE board or shield, follow the instructions for the specific board
+ * or shield below.
  *
  * Supported boards and shields:
- * - Arduino 101 (recommended)
+ * - Devices supported by the ArduinoBLE library, including the Arduino MKR WiFi 1010,
+ *   Arduino UNO WiFi Rev.2, Arduino Nano 33 IoT, and Arduino Nano 33 BLE
+ * - Arduino 101
  * - RedBearLab BLE Shield (v2)  ** to be verified **
  * - RedBearLab BLE Nano ** works with modifications **
+ * - Adafruit Feather M0 Bluefruit LE
  *
  *================================================================================================*/
 
 // change this to a unique name per board if running StandardFirmataBLE on multiple boards
 // within the same physical space
 #define FIRMATA_BLE_LOCAL_NAME "FIRMATA"
+
+/*
+ * ArduinoBLE devices
+ *
+ * Be sure to install the ArduinoBLE library via the Arduino Library Manager.
+ *
+ */
+#if defined(ARDUINO_SAMD_MKRWIFI1010) || defined(ARDUINO_AVR_UNO_WIFI_REV2) || defined(ARDUINO_SAMD_NANO_33_IOT) || defined(ARDUINO_ARDUINO_NANO33BLE)
+#define ARDUINO_BLE
+
+// Value is specified in units of 0.625 ms
+#define FIRMATA_BLE_ADVERTISING_INTERVAL 32 // 20ms (20 / 0.625)
+
+// These values are specified in units of 1.25 ms and must be between
+// 0x0006 (7.5ms) and 0x0c80 (4s).
+#define FIRMATA_BLE_MIN_INTERVAL 0x000c // 15ms (15 / 1.25)
+#define FIRMATA_BLE_MAX_INTERVAL 0x0018 // 30ms (30 / 1.25)
+#endif
+
+
+/*
+ * Arduino 101
+ *
+ * Make sure you have the Intel Curie Boards package v2.0.2 or higher installed via the Arduino
+ * Boards Manager.
+ *
+ * Test script: https://gist.github.com/soundanalogous/927360b797574ed50e27
+ */
+#ifdef _VARIANT_ARDUINO_101_X_
+// After conversion to units of 1.25ms, both values must be between
+// 0x0006 (7.5ms) and 0x0c80 (4s)
+#define FIRMATA_BLE_MIN_INTERVAL 8  // ( 8 * 1000) / 1250 == 0x06 -> 7.5ms
+#define FIRMATA_BLE_MAX_INTERVAL 30 // (30 * 1000) / 1250 == 0x18 -> 30ms
+#endif
+
 
 /*
  * RedBearLab BLE Shield
@@ -36,15 +72,53 @@
 //#define REDBEAR_BLE_SHIELD
 
 #ifdef REDBEAR_BLE_SHIELD
-#include <SPI.h>
-#include <BLEPeripheral.h>
-#include "utility/BLEStream.h"
-
 #define BLE_REQ  9
 #define BLE_RDY  8
 #define BLE_RST  4 // 4 or 7 via jumper on shield
+#endif
 
-BLEStream stream(BLE_REQ, BLE_RDY, BLE_RST);
+
+/*
+ * Adafruit Feather M0 Bluefruit LE
+ *
+ * If you are using an Adafruit Feather M0 Bluefruit LE, uncomment the define below.
+ * This configuration should also work with other Bluefruit LE boards/modules that communicate
+ * with the nRF51822 via SPI (e.g. Bluefruit LE SPI Friend, Bluefruit LE Shield), although
+ * you may need to change the values of BLE_SPI_CS, BLE_SPI_IRQ, and/or BLE_SPI_RST below.
+ *
+ * You will need to install the latest version of the Adafruit BluefruitLE nRF51 package,
+ * available at:
+ * https://github.com/adafruit/Adafruit_BluefruitLE_nRF51/archive/master.zip
+ */
+//#define BLUEFRUIT_LE_SPI
+
+#ifdef BLUEFRUIT_LE_SPI
+// Value must be between 20ms and 10.24s
+#define FIRMATA_BLE_ADVERTISING_INTERVAL 20 // 20ms
+
+// Both values must be between 10ms and 4s
+#define FIRMATA_BLE_MIN_INTERVAL 15 // 15ms
+#define FIRMATA_BLE_MAX_INTERVAL 30 // 30ms
+
+#define BLE_SPI_CS   8
+#define BLE_SPI_IRQ  7
+#define BLE_SPI_RST  4
+#endif
+
+
+/*
+ * Generic settings
+ */
+#if !defined(FIRMATA_BLE_MIN_INTERVAL) && !defined(FIRMATA_BLE_MAX_INTERVAL)
+// These values apply to all devices using the Arduino BLEPeripheral library
+// with a Nordic nRF8001 or nRF51822.  Both values must be between
+// 0x0006 (7.5ms) and 0x0c80 (4s).
+#define FIRMATA_BLE_MIN_INTERVAL 0x0006 // 7.5ms (7.5 / 1.25)
+#define FIRMATA_BLE_MAX_INTERVAL 0x0018 // 30ms (30 / 1.25)
+#endif
+
+#if !defined(FIRMATA_BLE_TXBUFFER_FLUSH_INTERVAL)
+#define FIRMATA_BLE_TXBUFFER_FLUSH_INTERVAL 30 // 30ms
 #endif
 
 
@@ -52,18 +126,28 @@ BLEStream stream(BLE_REQ, BLE_RDY, BLE_RST);
  * END BLE CONFIGURATION - you should not need to change anything below this line
  *================================================================================================*/
 
-/*
- * Arduino 101
- *
- * Make sure you have the Intel Curie Boards package v1.0.6 or higher installed via the Arduino
- * Boards Manager.
- *
- * Test script: https://gist.github.com/soundanalogous/927360b797574ed50e27
- */
+#ifdef ARDUINO_BLE
+#include "utility/ArduinoBLE_UART_Stream.h"
+ArduinoBLE_UART_Stream stream;
+#endif
+
+
 #ifdef _VARIANT_ARDUINO_101_X_
-#include <CurieBLE.h>
 #include "utility/BLEStream.h"
 BLEStream stream;
+#endif
+
+
+#ifdef REDBEAR_BLE_SHIELD
+#include <SPI.h>
+#include "utility/BLEStream.h"
+BLEStream stream(BLE_REQ, BLE_RDY, BLE_RST);
+#endif
+
+
+#ifdef BLUEFRUIT_LE_SPI
+#include "utility/BluefruitLE_SPI_Stream.h"
+BluefruitLE_SPI_Stream stream(BLE_SPI_CS, BLE_SPI_IRQ, BLE_SPI_RST);
 #endif
 
 
@@ -81,7 +165,6 @@ BLEStream stream;
  * the pins are currently mapped in Firmata only for the default (factory) jumper settings.
  */
 // #ifdef BLE_NANO
-// #include <BLEPeripheral.h>
 // #include "utility/BLEStream.h"
 // BLEStream stream;
 // #endif
@@ -96,7 +179,6 @@ BLEStream stream;
  */
 // #if defined(BLEND_MICRO) || defined(BLEND)
 // #include <SPI.h>
-// #include <BLEPeripheral.h>
 // #include "utility/BLEStream.h"
 
 // #define BLE_REQ  6
@@ -109,4 +191,6 @@ BLEStream stream;
 
 #if defined(BLE_REQ) && defined(BLE_RDY) && defined(BLE_RST)
 #define IS_IGNORE_BLE_PINS(p) ((p) == BLE_REQ || (p) == BLE_RDY || (p) == BLE_RST)
+#elif defined(BLE_SPI_CS) && defined(BLE_SPI_IRQ) && defined(BLE_SPI_RST)
+#define IS_IGNORE_BLE_PINS(p) ((p) == BLE_SPI_CS || (p) == BLE_SPI_IRQ || (p) == BLE_SPI_RST)
 #endif

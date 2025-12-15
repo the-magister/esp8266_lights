@@ -20,7 +20,7 @@
 
   See file LICENSE.txt for further informations on licensing terms.
 
-  Last updated October 16th, 2016
+  Last updated August 17th, 2017
 */
 
 /*
@@ -231,6 +231,7 @@ void readAndReportData(byte address, int theRegister, byte numBytes, byte stopTX
     Firmata.sendString("I2C: Too many bytes received");
   } else if (numBytes > Wire.available()) {
     Firmata.sendString("I2C: Too few bytes received");
+    numBytes = Wire.available();
   }
 
   i2cRxData[0] = address;
@@ -611,7 +612,7 @@ void sysexCallback(byte command, byte argc, byte *argv)
     case I2C_CONFIG:
       delayTime = (argv[0] + (argv[1] << 7));
 
-      if (delayTime > 0) {
+      if (argc > 1 && delayTime > 0) {
         i2cReadDelayTime = delayTime;
       }
 

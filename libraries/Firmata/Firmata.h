@@ -1,5 +1,5 @@
 /*
-  Firmata.h - Firmata library v2.5.6 - 2017-03-18
+  Firmata.h - Firmata library v2.5.8 - 2018-04-15
   Copyright (c) 2006-2008 Hans-Christoph Steiner.  All rights reserved.
   Copyright (C) 2009-2017 Jeff Hoefs.  All rights reserved.
 
@@ -128,7 +128,7 @@ class FirmataClass
 
     /* private methods ------------------------------ */
     void strobeBlinkPin(byte pin, int count, int onInterval, int offInterval);
-    friend void FirmataMarshaller::encodeByteStream (size_t bytec, uint8_t * bytev, size_t max_bytes = 0) const;
+    friend void FirmataMarshaller::encodeByteStream (size_t bytec, uint8_t * bytev, size_t max_bytes) const;
 
     /* callback functions */
     static callbackFunction currentAnalogCallback;
